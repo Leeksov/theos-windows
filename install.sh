@@ -74,7 +74,6 @@ for mapping in \
     "bin/nic.pl:vendor/nic/bin/nic.pl" \
     "bin/nicify.pl:vendor/nic/bin/nicify.pl" \
     "bin/denicify.pl:vendor/nic/bin/denicify.pl" \
-    "vendor/include/substrate.h:vendor/include/CydiaSubstrate.h" \
     "vendor/include/IOKit/IOKit.h:vendor/include/IOKit/IOKitLib.h"; do
     dst="${mapping%%:*}"; src="${mapping##*:}"
     if [ -f "$src" ]; then
@@ -87,6 +86,14 @@ for mapping in \
 done
 mkdir -p bin/lib
 cp -r vendor/logos/bin/lib/* bin/lib/ 2>/dev/null || true
+
+# Fix substrate.h — copy real header from framework, not the broken symlink
+REAL_SUBSTRATE="vendor/lib/CydiaSubstrate.framework/Headers/CydiaSubstrate.h"
+if [ -f "$REAL_SUBSTRATE" ]; then
+    cp "$REAL_SUBSTRATE" "vendor/include/CydiaSubstrate.h"
+    cp "$REAL_SUBSTRATE" "vendor/include/substrate.h"
+fi
+
 ok "Symlinks fixed"
 
 # ── Step 4: Install toolchain into Theos ───────────────────────────
@@ -103,8 +110,16 @@ SUBSTRATE="$THEOS/vendor/lib/CydiaSubstrate.framework"
 [ -f "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" ] && \
     cp "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" "$SUBSTRATE/CydiaSubstrate" && \
     rm -f "$SUBSTRATE/CydiaSubstrate.tbd" "$THEOS/vendor/lib/libsubstrate.tbd" 2>/dev/null
-[ -f "$PREFIX/stubs/CydiaSubstrate.h" ] && \
-    cp "$PREFIX/stubs/CydiaSubstrate.h" "$THEOS/vendor/include/CydiaSubstrate.h"
+REAL_HDR="$SUBSTRATE/Headers/CydiaSubstrate.h"
+[ -f "$REAL_HDR" ] && cp "$REAL_HDR" "$THEOS/vendor/include/CydiaSubstrate.h" \
+    && cp "$REAL_HDR" "$THEOS/vendor/include/substrate.h"
+
+# Rootless substrate stub
+ROOTLESS="$THEOS/vendor/lib/iphone/rootless/CydiaSubstrate.framework"
+if [ -d "$ROOTLESS" ]; then
+    cp "$SUBSTRATE/CydiaSubstrate" "$ROOTLESS/CydiaSubstrate" 2>/dev/null
+    rm -f "$ROOTLESS/CydiaSubstrate.tbd" "$THEOS/vendor/lib/iphone/rootless/libsubstrate.tbd" 2>/dev/null
+fi
 ok "Toolchain ready"
 
 # ── Step 5: Install iOS SDK ────────────────────────────────────────
@@ -202,7 +217,7 @@ if ! grep -q "$MARKER" "$PROFILE" 2>/dev/null; then
 # theos-windows
 export THEOS="$HOME/.theos/theos"
 export PATH="$HOME/.theos/tools-bin:$THEOS/toolchain/windows/iphone/bin:$PATH"
-export MSYS2_ARG_CONV_EXCL="-install_name;-dylib_install_name;/Library"
+export MSYS2_ARG_CONV_EXCL="-install_name;-dylib_install_name;/Library;/var;/usr"
 ENVEOF
     ok "Added to ~/.bashrc"
 fi
