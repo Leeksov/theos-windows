@@ -1,0 +1,17 @@
+llvm-build/
+tools-src/llvm-project/
+tools-src/openssl*/
+tools-src/libplist*/
+tools-src/make/
+tools-src/zip30/
+tools-src/ldid/
+tools-src/dpkg/
+tools-src/mman-win32/
+tools-src/_*.bat
+tools-src/*.obj
+strawberry-perl/
+theos/
+tools-bin/*.exe
+tools-bin/*.dll
+*.zip
+*.tar.*
