@@ -37,7 +37,7 @@ $THEOS/bin/nic.pl
 ```makefile
 ARCHS = arm64
 TARGET = iphone:16.5:15.0
-TARGET_CODESIGN =
+TARGET_CODESIGN = true
 _THEOS_PLATFORM_DPKG_DEB = dpkg-deb
 
 include $(THEOS)/makefiles/common.mk
