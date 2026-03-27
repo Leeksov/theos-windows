@@ -193,7 +193,7 @@ fi
 
 ok "Theos patched"
 
-# ── Step 8: Configure shell ────────────────────────────────────────
+# ── Step 8: Configure shell + Windows make wrapper ─────────────────
 PROFILE="$HOME/.bashrc"
 MARKER="# theos-windows"
 if ! grep -q "$MARKER" "$PROFILE" 2>/dev/null; then
@@ -207,21 +207,40 @@ ENVEOF
     ok "Added to ~/.bashrc"
 fi
 
+# Create make.bat wrapper so 'make' works from cmd.exe / PowerShell
+GITBASH_WIN="$(cygpath -w "$(command -v bash)" 2>/dev/null || echo 'C:\Program Files\Git\bin\bash.exe')"
+cat > "$PREFIX/make.bat" << BATEOF
+@echo off
+"$GITBASH_WIN" --login -c "cd '%CD:\=/%' && source ~/.bashrc 2>/dev/null && make %*"
+BATEOF
+ok "Created make.bat wrapper"
+
+# Add to Windows PATH
+info "Adding to Windows PATH..."
+TOOLS_WIN="$(cygpath -w "$PREFIX")"
+powershell.exe -Command "
+\$p = [Environment]::GetEnvironmentVariable('PATH','User');
+if (\$p -notlike '*$TOOLS_WIN*') {
+    [Environment]::SetEnvironmentVariable('PATH', '$TOOLS_WIN;' + \$p, 'User')
+}
+[Environment]::SetEnvironmentVariable('THEOS', '$TOOLS_WIN\\theos', 'User')
+" 2>/dev/null
+ok "Windows PATH and THEOS configured"
+
 # ── Done ───────────────────────────────────────────────────────────
 echo ""
 printf "${GREEN}============================================${NC}\n"
 printf "${GREEN}  Installation complete!${NC}\n"
 printf "${GREEN}============================================${NC}\n"
 echo ""
+echo "  Works in cmd.exe, PowerShell, and Git Bash."
 echo "  Restart your terminal, then:"
 echo ""
-echo "  1. Create project:  \$THEOS/bin/nic.pl"
+echo "  1. Create project:  \$THEOS/bin/nic.pl  (in Git Bash)"
 echo ""
-echo "  2. Makefile:"
-echo "     ARCHS = arm64"
-echo "     TARGET = iphone:16.5:15.0"
-echo ""
-echo "  3. Build:  make package"
+echo "  2. Build from ANY terminal:"
+echo "     cd C:\\dev\\MyTweak"
+echo "     make package"
 echo ""
 echo "  Installed to: ~/.theos"
 echo "  .deb output:  ./packages/"
