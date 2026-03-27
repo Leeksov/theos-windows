@@ -2,68 +2,39 @@
 
 Build iOS tweaks natively on Windows. No WSL, no VM, no macOS required.
 
-## What This Does
+## Quick Start
 
-Builds a complete iOS development toolchain on Windows:
-- **Clang** cross-compiler (Apple fork by [L1ghtmann](https://github.com/L1ghtmann/llvm-project)) targeting arm64 iOS
-- **lld** linker patched for iOS Mach-O linking on Windows
-- **Theos** build system with Windows platform support
-- All required tools: make, perl, ldid, dpkg-deb, fakeroot, etc.
+### Prerequisites
+- [Git for Windows](https://git-scm.com/download/win) (includes Git Bash)
+- [Python 3](https://python.org) (with `pip install zstandard`)
 
-## Prerequisites
-
-| Tool | Required | Install |
-|------|----------|---------|
-| **Git for Windows** | Yes | https://git-scm.com/download/win |
-| **Visual Studio 2022+** | Yes (C++ workload) | https://visualstudio.microsoft.com/ |
-| **Python 3.x** | Yes (+ `zstandard` pip package) | https://python.org |
-
-> Install Python `zstandard` module: `pip install zstandard`
-
-## Installation
+### Install (one command)
 
 Open **Git Bash** and run:
 
 ```bash
-git clone https://github.com/YourUsername/theos-windows.git
+bash <(curl -fsSL https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.sh)
+```
+
+Or clone and run:
+
+```bash
+git clone https://github.com/Leeksov/theos-windows.git
 cd theos-windows
 bash install.sh
 ```
 
-The installer will:
-1. Clone and build LLVM/Clang from source (~30-90 min)
-2. Patch lld for iOS cross-compilation
-3. Set up Theos with Windows platform support
-4. Download iOS SDK
-5. Install Strawberry Perl (for Logos preprocessor)
-6. Create tool stubs (fakeroot, dpkg-deb, rsync)
-
-Default install location: `~/theos-windows`. Override with:
-```bash
-bash install.sh /c/path/to/install
-```
-
-## Post-Install Setup
-
-Add to your `~/.bashrc`:
-
-```bash
-export THEOS="$HOME/theos-windows/theos"
-export PATH="$HOME/theos-windows/tools-bin:$THEOS/toolchain/windows/iphone/bin:$PATH"
-export MSYS2_ARG_CONV_EXCL="-install_name;-dylib_install_name;/Library"
-```
-
-Then restart your terminal or `source ~/.bashrc`.
+That's it. Restart your terminal after install.
 
 ## Usage
 
-### Create a new tweak
+### Create a tweak
 
 ```bash
 $THEOS/bin/nic.pl
 ```
 
-### Makefile template
+### Makefile
 
 ```makefile
 ARCHS = arm64
@@ -83,75 +54,69 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 ### Build
 
 ```bash
-make                    # compile
-make package            # compile + .deb
-make clean              # clean build
+make              # compile only
+make package      # compile + .deb
+make clean        # clean
 ```
 
-The `.deb` package will be in `./packages/`.
+`.deb` goes to `./packages/`.
+
+## What Gets Installed
+
+| Component | Size | Source |
+|-----------|------|--------|
+| Clang/LLD cross-compiler | ~150 MB | Pre-built from [L1ghtmann/llvm-project](https://github.com/L1ghtmann/llvm-project) (Apple fork) |
+| GNU Make (MSYS2) | ~1 MB | Pre-built |
+| ldid (code signing) | ~1 MB | Built from [ProcursusTeam/ldid](https://github.com/ProcursusTeam/ldid) |
+| Theos | ~50 MB | Cloned from [theos/theos](https://github.com/theos/theos) |
+| iOS SDK | ~70 MB | Downloaded by Theos |
+| Strawberry Perl | ~290 MB | Downloaded from [strawberryperl.com](https://strawberryperl.com) (needed for Logos `.x` files) |
+| Tool stubs | ~5 KB | fakeroot, dpkg-deb, rsync replacements |
 
 ## Supported File Types
 
-| Extension | Description | Status |
-|-----------|-------------|--------|
-| `.m` | Objective-C | Fully supported |
-| `.mm` | Objective-C++ | Fully supported |
-| `.c` | C | Fully supported |
-| `.cpp` | C++ | Fully supported |
-| `.x` | Logos (ObjC) | Fully supported |
-| `.xm` | Logos (ObjC++) | Fully supported |
-| `.swift` | Swift | Not supported (no Swift cross-compiler) |
+| Extension | Type | Status |
+|-----------|------|--------|
+| `.m` | Objective-C | ✅ |
+| `.mm` | Objective-C++ | ✅ |
+| `.c` / `.cpp` | C / C++ | ✅ |
+| `.x` | Logos (ObjC) | ✅ |
+| `.xm` | Logos (ObjC++) | ✅ |
+| `.swift` | Swift | ❌ No cross-compiler |
 
 ## Important Notes
 
-- **No spaces in project path.** GNU Make doesn't handle spaces. Keep projects in paths like `C:\dev\tweaks\MyTweak`.
-- **MSYS2 path conversion.** The `MSYS2_ARG_CONV_EXCL` env var prevents Git Bash from mangling iOS paths like `/Library/`.
-- **Code signing** is disabled by default (`TARGET_CODESIGN =`). Sign on-device or use ldid separately.
-- **CydiaSubstrate** is provided as a stub dylib for linking. The real library loads at runtime on the device.
-
-## Project Structure
-
-```
-theos-windows/
-├── install.sh              # Automated installer
-├── theos/                  # Theos build system
-│   ├── toolchain/windows/iphone/bin/   # Cross-compiler
-│   ├── sdks/               # iOS SDKs
-│   └── makefiles/          # Patched for Windows
-├── tools-bin/              # Windows-native tools
-│   ├── make.exe            # MSYS2 GNU Make
-│   ├── perl                # Strawberry Perl wrapper
-│   ├── fakeroot            # Stub (no-op on Windows)
-│   ├── dpkg-deb            # Minimal .deb packager
-│   └── rsync               # cp-based replacement
-├── strawberry-perl/        # Full Perl for Logos
-├── llvm-build/             # Built LLVM binaries
-└── tools-src/              # Build sources
-```
+- **No spaces in project path.** Use paths like `C:\dev\tweaks\MyTweak`
+- **Code signing** is disabled by default. Sign on-device or use ldid separately
+- **CydiaSubstrate** is a stub for linking — the real lib loads on-device
+- Uses MSYS2 make (not MSVC make) — required for bash-based Theos makefiles
 
 ## Troubleshooting
 
-### "does not support linking for platform iOS"
-The lld patch wasn't applied. Re-run the installer or manually edit `llvm-project/lld/MachO/InputFiles.cpp` — remove the `error()` call in `checkCompatibility()`.
+| Problem | Fix |
+|---------|-----|
+| `platform does not define a default target` | Use MSYS2 make: `make --version` → must say `x86_64-pc-msys` |
+| `stdarg.h not found` | Missing clang headers. Re-run installer |
+| Logos `.x` fails with `Can't locate...` | Perl issue. Run: `perl -e "use Locale::Maketext::Simple"` |
+| `does not support linking for platform iOS` | lld not patched. Re-download toolchain |
+| Path errors with `C:/Program Files/...` | Set `export MSYS2_ARG_CONV_EXCL="-install_name;-dylib_install_name;/Library"` |
 
-### "stdarg.h not found"
-Clang can't find its builtin headers. Ensure `toolchain/windows/iphone/lib/clang/<version>/include/` exists and contains `stdarg.h`.
+## How It Works
 
-### Logos (.x) files fail with "Can't locate..."
-Strawberry Perl isn't in PATH, or its modules are missing. Verify: `perl -e "use Locale::Maketext::Simple; print 'OK'"`.
+The installer downloads a pre-built LLVM/Clang cross-compiler (Apple fork with iOS support), patches lld's Mach-O linker to allow iOS linking on Windows, sets up Theos with Windows platform detection, and provides stub replacements for Unix-only tools.
 
-### "platform does not define a default target"
-Platform detection failed. Ensure you're using MSYS2 make (not MSVC native make): `make --version` should show `Built for x86_64-pc-msys`.
+Key patches:
+- **lld**: Removes Apple's "platform not supported" check in `InputFiles.cpp` that blocks iOS linking on non-macOS
+- **ld wrapper**: Translates `-iphoneos_version_min` to `-platform_version ios` (lld ld64 flavor requirement)
+- **Theos makefiles**: MINGW/MSYS → Windows platform mapping, ld64.lld linker path
 
 ## Credits
 
-- [Theos](https://github.com/theos/theos) — the jailbreak build system
-- [L1ghtmann/llvm-project](https://github.com/L1ghtmann/llvm-project) — Apple LLVM fork with iOS cross-compilation support
-- [Strawberry Perl](https://strawberryperl.com/) — full Perl for Windows
+- [Theos](https://github.com/theos/theos)
+- [L1ghtmann/llvm-project](https://github.com/L1ghtmann/llvm-project)
+- [ProcursusTeam/ldid](https://github.com/ProcursusTeam/ldid)
+- [Strawberry Perl](https://strawberryperl.com/)
 
 ## License
 
-The installer scripts are MIT licensed. Individual components have their own licenses:
-- LLVM: Apache 2.0 with LLVM Exception
-- Theos: GPLv3
-- Strawberry Perl: Artistic License / GPL
+MIT (installer scripts). Components have their own licenses (LLVM: Apache 2.0, Theos: GPLv3, Perl: Artistic/GPL).
