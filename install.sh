@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Theos for Windows - One-Click Installer
-# Requires: Git Bash (Git for Windows)
-# Usage: bash install.sh [install-path]
+# Downloads everything from GitHub. Installs to ~/.theos
+# Usage: bash install.sh
 
 set -e
 
@@ -13,11 +13,10 @@ error() { printf "${RED}==>${NC} %s\n" "$1"; exit 1; }
 
 REPO="Leeksov/theos-windows"
 TOOLCHAIN_ASSET="theos-windows-toolchain.tar.gz"
-PREFIX="${1:-$HOME/theos-windows}"
-PREFIX="${PREFIX//\\//}"
+PREFIX="$HOME/.theos"
 
 echo ""
-printf "${BOLD}  Theos for Windows — Installer${NC}\n"
+printf "${BOLD}  Theos for Windows${NC}\n"
 printf "  Build iOS tweaks natively on Windows\n"
 echo ""
 
@@ -27,7 +26,6 @@ command -v git  >/dev/null 2>&1 || error "Git not found. Install: https://git-sc
 command -v curl >/dev/null 2>&1 || error "curl not found."
 command -v tar  >/dev/null 2>&1 || error "tar not found."
 
-# Find Python for Strawberry Perl extraction
 PYTHON=""
 for p in python3 python; do command -v "$p" >/dev/null 2>&1 && PYTHON="$p" && break; done
 if [ -z "$PYTHON" ]; then
@@ -38,43 +36,37 @@ fi
 
 ok "Prerequisites OK"
 info "Install path: $PREFIX"
-
 mkdir -p "$PREFIX"
 
-# ── Step 1: Download pre-built toolchain ───────────────────────────
-TOOLCHAIN_URL="https://github.com/$REPO/releases/latest/download/$TOOLCHAIN_ASSET"
-
+# ── Step 1: Download pre-built toolchain from GitHub Releases ──────
 if [ -f "$PREFIX/toolchain/windows/iphone/bin/clang.exe" ]; then
-    info "Toolchain already installed, skipping download..."
+    ok "Toolchain already installed"
 else
     info "Downloading pre-built toolchain (~150 MB)..."
-    curl -L "$TOOLCHAIN_URL" -o "$PREFIX/$TOOLCHAIN_ASSET" --progress-bar
-    [ -f "$PREFIX/$TOOLCHAIN_ASSET" ] || error "Download failed"
+    curl -L "https://github.com/$REPO/releases/latest/download/$TOOLCHAIN_ASSET" \
+        -o "$PREFIX/$TOOLCHAIN_ASSET" --progress-bar
+    [ -s "$PREFIX/$TOOLCHAIN_ASSET" ] || error "Download failed"
 
-    info "Extracting toolchain..."
+    info "Extracting..."
     tar xzf "$PREFIX/$TOOLCHAIN_ASSET" -C "$PREFIX"
     rm -f "$PREFIX/$TOOLCHAIN_ASSET"
     ok "Toolchain installed"
 fi
 
-# ── Step 2: Clone Theos ────────────────────────────────────────────
+# ── Step 2: Clone Theos from GitHub ────────────────────────────────
 THEOS="$PREFIX/theos"
-
 if [ -d "$THEOS/.git" ]; then
-    info "Theos already cloned"
+    ok "Theos already cloned"
 else
     info "Cloning Theos..."
     git clone --recursive https://github.com/theos/theos.git "$THEOS"
 fi
-
-# Ensure submodules
 info "Updating submodules..."
 (cd "$THEOS" && git submodule update --init --recursive 2>/dev/null) || true
 
-# ── Step 3: Fix Windows symlinks ──────────────────────────────────
-info "Fixing symlinks (Windows Git doesn't create real symlinks)..."
+# ── Step 3: Fix broken symlinks ────────────────────────────────────
+info "Fixing Windows symlinks..."
 cd "$THEOS"
-
 for mapping in \
     "bin/logos.pl:vendor/logos/bin/logos.pl" \
     "bin/logify.pl:vendor/logos/bin/logify.pl" \
@@ -84,68 +76,57 @@ for mapping in \
     "bin/denicify.pl:vendor/nic/bin/denicify.pl" \
     "vendor/include/substrate.h:vendor/include/CydiaSubstrate.h" \
     "vendor/include/IOKit/IOKit.h:vendor/include/IOKit/IOKitLib.h"; do
-    dst="${mapping%%:*}"
-    src="${mapping##*:}"
+    dst="${mapping%%:*}"; src="${mapping##*:}"
     if [ -f "$src" ]; then
-        # Only fix if target is a text pointer (broken symlink)
         if [ -f "$dst" ] && [ "$(wc -l < "$dst" 2>/dev/null)" -le 2 ]; then
-            content=$(cat "$dst" 2>/dev/null)
-            if echo "$content" | grep -q '^\.\./\|^[A-Za-z].*\.[A-Za-z]' 2>/dev/null; then
-                cp "$src" "$dst"
-            fi
+            head -1 "$dst" | grep -q '^\.\./\|^[A-Za-z].*\.[A-Za-z]' 2>/dev/null && cp "$src" "$dst"
         elif [ ! -f "$dst" ]; then
-            mkdir -p "$(dirname "$dst")"
-            cp "$src" "$dst"
+            mkdir -p "$(dirname "$dst")"; cp "$src" "$dst"
         fi
     fi
 done
-
-# Copy Logos perl modules
 mkdir -p bin/lib
 cp -r vendor/logos/bin/lib/* bin/lib/ 2>/dev/null || true
-
 ok "Symlinks fixed"
 
-# ── Step 4: Install pre-built components ──────────────────────────
+# ── Step 4: Install toolchain into Theos ───────────────────────────
 info "Setting up toolchain..."
-
-# Copy toolchain into theos
 TCDST="$THEOS/toolchain/windows/iphone"
 mkdir -p "$TCDST/bin" "$TCDST/lib"
+cp -rn "$PREFIX/toolchain/windows/iphone/bin/"* "$TCDST/bin/" 2>/dev/null || \
 cp -r "$PREFIX/toolchain/windows/iphone/bin/"* "$TCDST/bin/" 2>/dev/null
+cp -rn "$PREFIX/toolchain/windows/iphone/lib/"* "$TCDST/lib/" 2>/dev/null || \
 cp -r "$PREFIX/toolchain/windows/iphone/lib/"* "$TCDST/lib/" 2>/dev/null
 
-# Install CydiaSubstrate stub
-SUBSTRATE_DIR="$THEOS/vendor/lib/CydiaSubstrate.framework"
-if [ -f "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" ]; then
-    cp "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" "$SUBSTRATE_DIR/CydiaSubstrate"
-    rm -f "$SUBSTRATE_DIR/CydiaSubstrate.tbd" "$THEOS/vendor/lib/libsubstrate.tbd" 2>/dev/null
-fi
-if [ -f "$PREFIX/stubs/CydiaSubstrate.h" ]; then
+# CydiaSubstrate stub
+SUBSTRATE="$THEOS/vendor/lib/CydiaSubstrate.framework"
+[ -f "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" ] && \
+    cp "$PREFIX/stubs/CydiaSubstrate.framework/CydiaSubstrate" "$SUBSTRATE/CydiaSubstrate" && \
+    rm -f "$SUBSTRATE/CydiaSubstrate.tbd" "$THEOS/vendor/lib/libsubstrate.tbd" 2>/dev/null
+[ -f "$PREFIX/stubs/CydiaSubstrate.h" ] && \
     cp "$PREFIX/stubs/CydiaSubstrate.h" "$THEOS/vendor/include/CydiaSubstrate.h"
-fi
-
 ok "Toolchain ready"
 
-# ── Step 5: Install iOS SDK ───────────────────────────────────────
+# ── Step 5: Install iOS SDK ────────────────────────────────────────
 if ls "$THEOS/sdks/"iPhoneOS*.sdk/SDKSettings.plist >/dev/null 2>&1; then
     ok "iOS SDK already installed"
 else
     info "Downloading iOS SDK..."
     export THEOS
-    bash "$THEOS/bin/install-sdk" latest 2>&1 || warn "SDK install had warnings (usually OK)"
+    bash "$THEOS/bin/install-sdk" latest 2>&1 || warn "SDK warnings (usually OK)"
     ls "$THEOS/sdks/"iPhoneOS*.sdk/SDKSettings.plist >/dev/null 2>&1 && ok "iOS SDK installed" || warn "SDK may need manual install"
 fi
 
-# ── Step 6: Install Strawberry Perl ───────────────────────────────
+# ── Step 6: Install Strawberry Perl from GitHub ────────────────────
 PERL_DIR="$PREFIX/strawberry-perl"
 TOOLS="$PREFIX/tools-bin"
 
 if [ -f "$PERL_DIR/perl/bin/perl.exe" ]; then
-    info "Strawberry Perl already installed"
+    ok "Strawberry Perl already installed"
 else
-    info "Downloading Strawberry Perl (~290 MB, needed for Logos .x files)..."
-    PERL_URL=$(curl -sL "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases/latest" 2>/dev/null | grep "browser_download_url.*portable.*zip" | head -1 | grep -o 'https://[^"]*')
+    info "Downloading Strawberry Perl (~290 MB)..."
+    PERL_URL=$(curl -sL "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases/latest" 2>/dev/null \
+        | grep "browser_download_url.*portable.*zip" | head -1 | grep -o 'https://[^"]*')
     if [ -n "$PERL_URL" ]; then
         curl -L "$PERL_URL" -o /tmp/strawberry-perl.zip --progress-bar
         mkdir -p "$PERL_DIR"
@@ -153,83 +134,68 @@ else
         rm -f /tmp/strawberry-perl.zip
         ok "Strawberry Perl installed"
     else
-        warn "Could not download Perl. Logos (.x) files won't work. Install manually from https://strawberryperl.com"
+        warn "Could not download Perl. Logos (.x) won't work."
     fi
 fi
 
-# Update perl wrapper
+# Perl wrapper
 if [ -f "$PERL_DIR/perl/bin/perl.exe" ]; then
-    cat > "$TOOLS/perl" << PEOF
-#!/bin/sh
-exec "$PERL_DIR/perl/bin/perl.exe" "\$@"
-PEOF
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$PERL_DIR/perl/bin/perl.exe" > "$TOOLS/perl"
     chmod +x "$TOOLS/perl"
 fi
 
-# ── Step 7: Patch Theos makefiles ─────────────────────────────────
-info "Patching Theos for Windows..."
+# ── Step 7: Patch Theos makefiles ──────────────────────────────────
+info "Patching Theos..."
 
-# 7a. Platform detection — recognize MINGW/MSYS as Windows
+# Platform detection
 COMMON_MK="$THEOS/makefiles/common.mk"
 if ! grep -q 'MINGW%' "$COMMON_MK" 2>/dev/null; then
-    # Insert Windows detection before the default platform assignment
     sed -i '/^export _THEOS_PLATFORM = \$(uname_s)$/i\
 ifneq ($(filter MINGW% MSYS% CYGWIN%,$(uname_s)),)\
 export _THEOS_PLATFORM := Windows\
 export _THEOS_OS := Windows\
 else' "$COMMON_MK"
-    # Close the else/endif after _THEOS_OS line
     sed -i '/^export _THEOS_OS = \$(if/a\
 endif' "$COMMON_MK"
-    ok "Patched common.mk"
-else
-    info "common.mk already patched"
+    ok "Patched platform detection"
 fi
 
-# 7b. Linker — use ld64.lld wrapper via -B flag
+# Linker
 DARWIN_TAIL="$THEOS/makefiles/targets/_common/darwin_tail.mk"
 if ! grep -q 'ld64.lld' "$DARWIN_TAIL" 2>/dev/null; then
-    # After the existing -fuse-ld line, add Windows fallback
     sed -i '/^_THEOS_TARGET_LDFLAGS += -fuse-ld=\$(SDKBINPATH)\/\$(_THEOS_TARGET_SDK_BIN_PREFIX)ld$/a\
 else ifneq ($(wildcard $(SDKBINPATH)/ld64.lld.exe),)\
 _THEOS_TARGET_LDFLAGS += -B$(SDKBINPATH)' "$DARWIN_TAIL"
-    ok "Patched darwin_tail.mk"
-else
-    info "darwin_tail.mk already patched"
+    ok "Patched linker config"
 fi
 
-ok "Theos patched for Windows"
+ok "Theos patched"
 
-# ── Step 8: Shell profile ─────────────────────────────────────────
-info "Setting up environment..."
-
+# ── Step 8: Configure shell ────────────────────────────────────────
 PROFILE="$HOME/.bashrc"
 MARKER="# theos-windows"
-
 if ! grep -q "$MARKER" "$PROFILE" 2>/dev/null; then
-    cat >> "$PROFILE" << ENVEOF
+    cat >> "$PROFILE" << 'ENVEOF'
 
-$MARKER
-export THEOS="$PREFIX/theos"
-export PATH="$PREFIX/tools-bin:\$THEOS/toolchain/windows/iphone/bin:\$PATH"
+# theos-windows
+export THEOS="$HOME/.theos/theos"
+export PATH="$HOME/.theos/tools-bin:$THEOS/toolchain/windows/iphone/bin:$PATH"
 export MSYS2_ARG_CONV_EXCL="-install_name;-dylib_install_name;/Library"
 ENVEOF
     ok "Added to ~/.bashrc"
-else
-    info "~/.bashrc already configured"
 fi
 
-# ── Done ──────────────────────────────────────────────────────────
+# ── Done ───────────────────────────────────────────────────────────
 echo ""
-echo "============================================"
-ok "Installation complete!"
-echo "============================================"
+printf "${GREEN}============================================${NC}\n"
+printf "${GREEN}  Installation complete!${NC}\n"
+printf "${GREEN}============================================${NC}\n"
 echo ""
 echo "  Restart your terminal, then:"
 echo ""
-echo "  1. Create a project:  \$THEOS/bin/nic.pl"
+echo "  1. Create project:  \$THEOS/bin/nic.pl"
 echo ""
-echo "  2. Add to your Makefile:"
+echo "  2. Makefile:"
 echo "     ARCHS = arm64"
 echo "     TARGET = iphone:16.5:15.0"
 echo "     TARGET_CODESIGN ="
@@ -237,5 +203,6 @@ echo "     _THEOS_PLATFORM_DPKG_DEB = dpkg-deb"
 echo ""
 echo "  3. Build:  make package"
 echo ""
-echo "  .deb output: ./packages/"
+echo "  Installed to: ~/.theos"
+echo "  .deb output:  ./packages/"
 echo ""

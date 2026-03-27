@@ -2,38 +2,27 @@
 
 Build iOS tweaks natively on Windows. No WSL, no VM, no macOS required.
 
-## Quick Start
+## Install
 
-### Prerequisites
-- [Git for Windows](https://git-scm.com/download/win) (includes Git Bash)
-- [Python 3](https://python.org) (with `pip install zstandard`)
+Everything downloads automatically from GitHub. Nothing to build.
 
-### Option 1: Double-click (easiest)
-
-1. [Download this repo](https://github.com/Leeksov/theos-windows/archive/refs/heads/master.zip) and extract
-2. Double-click **`install.bat`**
-
-### Option 2: PowerShell (auto-installs Git if missing)
+### Option 1: PowerShell (recommended, auto-installs Git if needed)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.ps1 -OutFile install.ps1; .\install.ps1"
+powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.ps1 -OutFile i.ps1; .\i.ps1; del i.ps1"
 ```
 
-### Option 3: Git Bash
+### Option 2: Git Bash (if you already have Git)
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.sh)
 ```
 
-Or clone and run:
+### Prerequisites
+- [Python 3](https://python.org) + `pip install zstandard`
+- Git for Windows — installed automatically if missing
 
-```bash
-git clone https://github.com/Leeksov/theos-windows.git
-cd theos-windows
-bash install.sh
-```
-
-Restart your terminal after install.
+Installs to `~/.theos` (`%USERPROFILE%\.theos`). Restart terminal after install.
 
 ## Usage
 
