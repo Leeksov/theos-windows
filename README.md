@@ -8,9 +8,18 @@ Build iOS tweaks natively on Windows. No WSL, no VM, no macOS required.
 - [Git for Windows](https://git-scm.com/download/win) (includes Git Bash)
 - [Python 3](https://python.org) (with `pip install zstandard`)
 
-### Install (one command)
+### Option 1: Double-click (easiest)
 
-Open **Git Bash** and run:
+1. [Download this repo](https://github.com/Leeksov/theos-windows/archive/refs/heads/master.zip) and extract
+2. Double-click **`install.bat`**
+
+### Option 2: PowerShell (auto-installs Git if missing)
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.ps1 -OutFile install.ps1; .\install.ps1"
+```
+
+### Option 3: Git Bash
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Leeksov/theos-windows/master/install.sh)
@@ -24,7 +33,7 @@ cd theos-windows
 bash install.sh
 ```
 
-That's it. Restart your terminal after install.
+Restart your terminal after install.
 
 ## Usage
 
