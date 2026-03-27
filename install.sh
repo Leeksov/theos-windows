@@ -184,20 +184,6 @@ _THEOS_TARGET_LDFLAGS += -B$(SDKBINPATH)' "$DARWIN_TAIL"
     ok "Patched linker config"
 fi
 
-# Codesign — skip ldid on Windows (path issues with C:)
-DARWIN_HEAD="$THEOS/makefiles/targets/_common/darwin_head.mk"
-if ! grep -q 'windows.*true' "$DARWIN_HEAD" 2>/dev/null; then
-    sed -i '/^ifeq (\$(TARGET_CODESIGN),)$/a\
-ifeq ($(THEOS_PLATFORM_NAME),windows)\
-\tTARGET_CODESIGN = true\
-else' "$DARWIN_HEAD"
-    # Close the else before the existing endif
-    sed -i '/^endif # codesign$/!{ /^ifeq (\$(TARGET_CODESIGN),)/,/^endif$/ { /^endif$/i\
-endif
-} }' "$DARWIN_HEAD" 2>/dev/null || true
-    ok "Patched codesign for Windows"
-fi
-
 # dpkg-deb — use stub on Windows
 WINDOWS_MK="$THEOS/makefiles/platform/Windows.mk"
 if ! grep -q 'DPKG_DEB' "$WINDOWS_MK" 2>/dev/null; then
