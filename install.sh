@@ -169,6 +169,28 @@ _THEOS_TARGET_LDFLAGS += -B$(SDKBINPATH)' "$DARWIN_TAIL"
     ok "Patched linker config"
 fi
 
+# Codesign — skip ldid on Windows (path issues with C:)
+DARWIN_HEAD="$THEOS/makefiles/targets/_common/darwin_head.mk"
+if ! grep -q 'windows.*true' "$DARWIN_HEAD" 2>/dev/null; then
+    sed -i '/^ifeq (\$(TARGET_CODESIGN),)$/a\
+ifeq ($(THEOS_PLATFORM_NAME),windows)\
+\tTARGET_CODESIGN = true\
+else' "$DARWIN_HEAD"
+    # Close the else before the existing endif
+    sed -i '/^endif # codesign$/!{ /^ifeq (\$(TARGET_CODESIGN),)/,/^endif$/ { /^endif$/i\
+endif
+} }' "$DARWIN_HEAD" 2>/dev/null || true
+    ok "Patched codesign for Windows"
+fi
+
+# dpkg-deb — use stub on Windows
+WINDOWS_MK="$THEOS/makefiles/platform/Windows.mk"
+if ! grep -q 'DPKG_DEB' "$WINDOWS_MK" 2>/dev/null; then
+    sed -i '/^_THEOS_PLATFORM_GET_LOGICAL_CORES/a\
+_THEOS_PLATFORM_DPKG_DEB ?= dpkg-deb' "$WINDOWS_MK"
+    ok "Patched dpkg-deb for Windows"
+fi
+
 ok "Theos patched"
 
 # ── Step 8: Configure shell ────────────────────────────────────────
@@ -198,8 +220,6 @@ echo ""
 echo "  2. Makefile:"
 echo "     ARCHS = arm64"
 echo "     TARGET = iphone:16.5:15.0"
-echo "     TARGET_CODESIGN = true"
-echo "     _THEOS_PLATFORM_DPKG_DEB = dpkg-deb"
 echo ""
 echo "  3. Build:  make package"
 echo ""
