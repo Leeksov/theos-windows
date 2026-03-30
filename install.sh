@@ -122,14 +122,19 @@ if [ -d "$ROOTLESS" ]; then
 fi
 ok "Toolchain ready"
 
-# ── Step 5: Install iOS SDK ────────────────────────────────────────
+# ── Step 5: Install patched iOS SDK ───────────────────────────────
+SDK_URL="https://github.com/Leeksov/theos-sdk-windows/releases/latest/download/iPhoneOS16.5-windows.sdk.tar.gz"
+
 if ls "$THEOS/sdks/"iPhoneOS*.sdk/SDKSettings.plist >/dev/null 2>&1; then
     ok "iOS SDK already installed"
 else
-    info "Downloading iOS SDK..."
-    export THEOS
-    bash "$THEOS/bin/install-sdk" latest 2>&1 || warn "SDK warnings (usually OK)"
-    ls "$THEOS/sdks/"iPhoneOS*.sdk/SDKSettings.plist >/dev/null 2>&1 && ok "iOS SDK installed" || warn "SDK may need manual install"
+    info "Downloading patched iOS SDK (~30 MB)..."
+    mkdir -p "$THEOS/sdks"
+    curl -L "$SDK_URL" -o "$THEOS/sdks/sdk.tar.gz" --progress-bar
+    [ -s "$THEOS/sdks/sdk.tar.gz" ] || error "SDK download failed"
+    tar xzf "$THEOS/sdks/sdk.tar.gz" -C "$THEOS/sdks/"
+    rm -f "$THEOS/sdks/sdk.tar.gz"
+    ls "$THEOS/sdks/"iPhoneOS*.sdk/SDKSettings.plist >/dev/null 2>&1 && ok "iOS SDK installed" || error "SDK extraction failed"
 fi
 
 # ── Step 6: Install Strawberry Perl from GitHub ────────────────────
